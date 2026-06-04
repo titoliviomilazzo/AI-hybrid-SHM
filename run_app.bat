@@ -1,0 +1,3 @@
+@echo off
+echo Starting AI-SHM Research Platform...
+python -m streamlit run "%~dp0app_shm.py"

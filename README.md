@@ -11,7 +11,7 @@ A **hybrid framework** for Operational Modal Analysis (OMA) of wind-excited, hea
 
 > **한 줄 요약** — TMD가 설치된 비고전감쇠 구조물은 주구조물과 TMD가 매우 인접한 두 모드를 형성해 기존 OMA로 분리가 어렵습니다. AI-SSBMD는 신경망이 모드 후보를 빠르게 제시하고, 물리기반 OMA(FDD·MAC 등)가 이를 검증하는 **하이브리드 시스템**입니다. AI가 구조동역학을 대체하는 것이 아니라, 반복 판독과 초기 추정을 자동화합니다.
 
-> ⚠️ **This repository hosts the research documentation** (theory, algorithm rationale, and conference materials) for the AI-SSBMD algorithm and its web platform **AI-SHM PRO V12** (Streamlit). The implementation code is maintained separately and will be released here in stages — see the [Roadmap](#-roadmap--향후-계획).
+> **This repository hosts both the web-platform source and the research documentation** for the AI-SSBMD algorithm. The Streamlit app (`app_shm.py`) and a headless batch CLI (`batch_run_analysis.py`) are included. Trained model weights and measurement datasets are **not** published — available on request — to respect unpublished IP and data agreements. See [Quick Start](#-quick-start--실행) and the [Roadmap](#-roadmap--향후-계획).
 
 ---
 
@@ -60,6 +60,8 @@ The core principle: **AI is the starting point, not the end.**
 
 **Labels.** Derived from **displacement-only FDD** — chosen to avoid the noise amplification of velocity integration.
 
+> **Implementation note** — the dual-encoder design above is the *conference formulation*. The shipped local app (`app_shm.py`) runs a lighter **1-D CNN** (`RobustSSBMDModel`: a 6-channel `Conv1d` stack → frequency + mode-shape heads). The hybrid physics back-end (FDD snap → half-power → SVD/CSD → MAC) is identical in both.
+
 > **방법론** — 입력은 상태공간 cross-PSD `S_zz`와 공분산 `Cov_zz`. 신경망은 `S_zz`를 처리하는 3D CNN 인코더와 `Cov_zz`를 처리하는 FCN 인코더로 구성된 **이중 인코더**이며, 고유진동수·감쇠비·모드형상을 동시에 추정하는 **다중과제** 구조입니다. 손실함수에 감쇠비 물리 범위와 모드 직교성 제약을 내장하고, Grad-CAM(설명가능성)·MC Dropout(불확실성 정량화)을 함께 사용합니다. 학습 라벨은 속도 적분의 노이즈 증폭을 피하기 위해 **변위 기반 FDD** 결과를 씁니다.
 
 ---
@@ -102,9 +104,45 @@ A browser-based tool built on **Python Streamlit**. Drop in multi-channel accele
 
 ---
 
-## 📁 Repository Structure / 문서 구성
+## ⚡ Quick Start / 실행
 
-All documents are in Korean (the conference's working language).
+```bash
+git clone https://github.com/titoliviomilazzo/AI-hybrid-SHM.git
+cd AI-hybrid-SHM
+pip install -r requirements.txt
+```
+
+**Web app (local desktop):**
+
+```bash
+run_app.bat                          # Windows
+python -m streamlit run app_shm.py   # any platform
+```
+
+In the sidebar, point **Model** to a trained `.pth`, **Input Data** to a folder of 6-channel acceleration files (`.txt`/`.csv`), set the sampling frequency, and click **Start Analysis**. Filenames containing `UDR` are treated as healthy, `DMR` as damaged. Outputs (8 figures + CSV + meta-analysis) are written to the chosen output folder.
+
+**Batch CLI (headless):**
+
+```bash
+python batch_run_analysis.py --input_folder ./data --model ./model.pth --output ./results --fs 100 --n_modes 4
+```
+
+> **실행 요약** — `pip install -r requirements.txt` 후 `run_app.bat`(또는 `python -m streamlit run app_shm.py`). 사이드바에서 모델 `.pth`와 6채널 가속도 폴더를 지정하고 **Start Analysis**. 파일명 `UDR`=건전, `DMR`=손상. **모델 가중치·실측 데이터는 미포함**(요청 시 제공) — 직접 학습하거나 저자에게 요청하십시오. `app_shm.py`는 네이티브 `tkinter` 파일 다이얼로그를 쓰므로 **로컬 데스크탑** 실행 전용입니다(헤드리스 서버 불가).
+
+---
+
+## 📁 Repository Structure / 구성
+
+**Code** (English):
+
+| File | Description |
+|---|---|
+| [`app_shm.py`](app_shm.py) | Streamlit web platform — pre-inspection, AI inference, FDD/half-power/SVD-CSD verification, 8-figure export, meta-analysis dashboard |
+| [`batch_run_analysis.py`](batch_run_analysis.py) | Headless batch CLI — same pipeline over a folder, with healthy-vs-damaged comparative meta-analysis |
+| [`run_app.bat`](run_app.bat) | Windows launcher (`streamlit run app_shm.py`) |
+| [`requirements.txt`](requirements.txt) | Python dependencies |
+
+**Documentation** (Korean — the conference's working language):
 
 | Document | 내용 |
 |---|---|
@@ -113,14 +151,15 @@ All documents are in Korean (the conference's working language).
 | [`docs/03-lecture-oma-undergrad.md`](docs/03-lecture-oma-undergrad.md) | 학부생용 상태공간 OMA 강의교안 |
 | [`docs/04-ai-ssbmd-explained.md`](docs/04-ai-ssbmd-explained.md) | AI-SSBMD 알고리즘 체계 정리 — 각 신경망 구성요소의 원리·역할·효과 |
 | [`docs/05-slides-outline-weik2026.md`](docs/05-slides-outline-weik2026.md) | 발표 슬라이드 20장 개요 (도입→이론→알고리즘→적용→웹앱→결론) |
+| [`docs/06-development-history.md`](docs/06-development-history.md) | 개발 이력 — 진단·해결·돌파 연대기 (Fixed-Label 전략, Grad-CAM 검증) |
 
 ---
 
 ## 🛣️ Roadmap / 향후 계획
 
-- [ ] Release the AI-SHM PRO V12 web platform source (Streamlit) — 웹 플랫폼 코드 공개
-- [ ] Reference implementation of the dual-encoder network + trained weights — 신경망 구현·학습 가중치
-- [ ] Sample datasets (lab 6-story model) for reproducibility — 재현용 샘플 데이터
+- [x] Release the web platform source (Streamlit `app_shm.py`) + batch CLI — 웹 플랫폼·배치 코드 공개
+- [ ] Publish trained weights + sample datasets — pending journal publication & data agreements — 가중치·샘플 데이터 (논문 게재·데이터 협약 후)
+- [ ] Reference implementation of the dual-encoder (3-D CNN + FCN) variant — 이중 인코더 변형 구현 공개
 - [ ] **Semi-supervised surrogate** — combine a small set of OSSMD/FDD reference labels (~10–20 %) with abundant unlabeled responses via a physics loss
 - [ ] **Self-supervised surrogate** — drive training with the eigenvalue residual `‖P(ω)v̂ − λ̂·Var·v̂‖²`, removing label dependence
 
